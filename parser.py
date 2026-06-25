@@ -1,18 +1,16 @@
 import asyncio
 
-# --- ПАТЧ ДЛЯ PYTHON 3.14 (Arch Linux) ---
 try:
     asyncio.get_running_loop()
 except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
-# -----------------------------------------
 
 from pyrogram import Client
 from pyrogram.errors import FloodWait, ChannelPrivate, ChannelInvalid
 
 import config
 from utils.db_api import get_messages_for_post_parsing, update_or_create_statistics 
-# Используем данные из нашего конфига
+
 API_ID = config.API_ID
 API_HASH = config.API_HASH
 SESSION_NAME = config.SESSION_NAME
@@ -36,13 +34,11 @@ async def collect_and_save_views(post_id: int):
             async with Client(SESSION_NAME, api_id=API_ID, api_hash=API_HASH) as app:
                 print(f"[Парсер] Юзербот '{SESSION_NAME}' запущен.")
                 
-                # --- ЛОГИКА "ПРОГРЕВА КЭША" ---
-                # Собираем все уникальные ID каналов, которые нам нужно проверить
                 unique_channel_ids = {chat_id for chat_id, msg_id in messages_to_check}
                 print(f"[Парсер] Необходимо проверить каналы: {list(unique_channel_ids)}. Прогреваем кэш...")
                 
                 async for dialog in app.get_dialogs():
-                    if not unique_channel_ids: # Если все нужные каналы уже найдены
+                    if not unique_channel_ids:
                         break
                     if dialog.chat and dialog.chat.id in unique_channel_ids:
                         print(f"  -> Кэш для канала '{dialog.chat.title}' ({dialog.chat.id}) прогрет.")
@@ -50,11 +46,9 @@ async def collect_and_save_views(post_id: int):
                 
                 if unique_channel_ids:
                     print(f"  -> ⚠️ Внимание: Не удалось найти в диалогах каналы: {list(unique_channel_ids)}")
-                # --- КОНЕЦ ЛОГИКИ "ПРОГРЕВА КЭША" ---
 
                 for chat_id, message_id in messages_to_check:
                     try:
-                        # Теперь прямой вызов get_messages должен сработать, т.к. кэш прогрет
                         msg_object = await app.get_messages(chat_id=chat_id, message_ids=message_id)
                         
                         if msg_object and msg_object.views:
@@ -64,7 +58,6 @@ async def collect_and_save_views(post_id: int):
                             print(f"  -> Канал {chat_id}, Сообщение {message_id}: не удалось получить просмотры (сообщение удалено?).")
 
                     except Exception as e:
-                        # Мы уже знаем, что прямой вызов может не сработать, поэтому логируем как предупреждение
                         print(f"  -> ⚠️ Предупреждение при получении сообщения {message_id} из канала {chat_id}: {e}")
 
         except Exception as e:
@@ -74,7 +67,4 @@ async def collect_and_save_views(post_id: int):
 
 
 if __name__ == '__main__':
-    # Этот блок нужен для ручного тестирования парсера
-    # Например, чтобы проверить сбор для поста с ID=1
-    # asyncio.run(collect_and_save_views(1))
     pass
