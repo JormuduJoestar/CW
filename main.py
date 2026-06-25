@@ -1,11 +1,9 @@
 import asyncio
 
-# --- ПАТЧ ДЛЯ PYTHON 3.14 (Arch Linux) ---
 try:
     asyncio.get_running_loop()
 except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
-# -----------------------------------------
 
 import logging
 from aiogram import Bot, Dispatcher
@@ -26,14 +24,11 @@ async def on_startup():
     print("--- ЗАПУСК СИСТЕМЫ ---")
     await init_db()
     
-    # Запуск планировщика
     scheduler.start()
     print("Планировщик запущен.")
 
 async def main():
     dp.startup.register(on_startup)
-    
-    # Прокидываем scheduler внутрь хендлеров (чтобы мы могли добавлять задачи)
     dp["scheduler"] = scheduler 
     
     dp.include_router(common.router)
