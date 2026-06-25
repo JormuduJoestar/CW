@@ -3,7 +3,6 @@ from sqlalchemy.orm import DeclarativeBase, relationship, selectinload
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 import config
 
-# --- 1. СУЩНОСТИ (Таблицы) ---
 class Base(DeclarativeBase):
     pass
 
@@ -12,7 +11,7 @@ post_channels_association = Table(
     Base.metadata,
     Column('post_id', Integer, ForeignKey('posts.id'), primary_key=True),
     Column('channel_id', Integer, ForeignKey('channels.id'), primary_key=True),
-    Column('message_id', BigInteger, nullable=True) # <-- ВАЖНОЕ ПОЛЕ!
+    Column('message_id', BigInteger, nullable=True)
 )
 
 class User(Base):
@@ -36,7 +35,7 @@ class Post(Base):
     media_file_id = Column(String, nullable=True)
     media_type = Column(String, nullable=True)
     publish_date = Column(DateTime, nullable=True)
-    delete_after_minutes = Column(Integer, nullable=True) # Хранит минуты
+    delete_after_minutes = Column(Integer, nullable=True)
     status = Column(String, default="draft")
     
     target_channels = relationship("Channel", secondary=post_channels_association)
@@ -47,7 +46,6 @@ class Statistics(Base):
     post_id = Column(Integer, ForeignKey('posts.id'))
     views_at_delete = Column(Integer, default=0)
 
-# НОВАЯ ТАБЛИЦА
 class Template(Base):
     __tablename__ = 'templates'
     id = Column(Integer, primary_key=True)
@@ -57,7 +55,6 @@ class Template(Base):
     media_file_id = Column(String, nullable=True)
     media_type = Column(String, nullable=True)
 
-# Настройка движка
 engine = create_async_engine(f"sqlite+aiosqlite:///{config.DB_NAME}")
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -191,9 +188,8 @@ async def delete_template(tpl_id: int):
 
 import asyncio
 from pyrogram import Client
-import config # Импортируем наш конфиг
+import config
 
-# Используем переменные из config.py
 API_ID = config.API_ID
 API_HASH = config.API_HASH
 SESSION_NAME = config.SESSION_NAME
@@ -202,7 +198,6 @@ async def main():
     print("Начинаем процесс создания сессии для юзербота...")
     print("Вам потребуется ввести номер телефона, код из Telegram и, возможно, пароль 2FA.")
     
-    # Client создаст файл сессии с именем, указанным в SESSION_NAME
     async with Client(SESSION_NAME, api_id=API_ID, api_hash=API_HASH) as app:
         me = await app.get_me()
         print("-" * 30)
@@ -214,7 +209,6 @@ async def main():
         print("Этот скрипт больше запускать не нужно.")
 
 if __name__ == "__main__":
-    # Проверка, что API_ID и API_HASH не пустые
     if not API_ID or not API_HASH:
         print("❌ Ошибка: API_ID и/или API_HASH не указаны в вашем .env файле.")
         print("Пожалуйста, заполните их и попробуйте снова.")
@@ -230,7 +224,6 @@ async def get_messages_for_post_parsing(post_id: int):
     Это нужно, чтобы парсер знал, какие сообщения ему проверять.
     """
     async with async_session() as session:
-        # Сложный запрос с JOIN для получения нужных данных
         query = (
             select(Channel.channel_telegram_id, post_channels_association.c.message_id)
             .join(Channel, post_channels_association.c.channel_id == Channel.id)
@@ -245,7 +238,6 @@ async def get_messages_for_post_parsing(post_id: int):
 async def save_statistics(post_id: int, total_views: int):
     """Сохраняет итоговое количество просмотров в таблицу Statistics."""
     async with async_session() as session:
-        # Проверим, нет ли уже записи для этого поста
         query = select(Statistics).where(Statistics.post_id == post_id)
         existing_stat = await session.execute(query)
         if existing_stat.scalar_one_or_none():
@@ -279,17 +271,14 @@ async def update_or_create_statistics(post_id: int, views: int):
     Используется для сбора "живой" статистики.
     """
     async with async_session() as session:
-        # Пытаемся найти существующую запись
         query = select(Statistics).where(Statistics.post_id == post_id)
         result = await session.execute(query)
         stat_record = result.scalar_one_or_none()
 
         if stat_record:
-            # Если нашли - обновляем
             stat_record.views_at_delete = views
             print(f"[Статистика] Обновлены данные для поста #{post_id}: {views} просмотров.")
         else:
-            # Если не нашли - создаем
             new_stat = Statistics(post_id=post_id, views_at_delete=views)
             session.add(new_stat)
             print(f"[Статистика] Созданы новые данные для поста #{post_id}: {views} просмотров.")
