@@ -13,9 +13,9 @@ API_HASH = os.getenv("API_HASH")
 SESSION_NAME = os.getenv("SESSION_NAME")
 
 PROXY = {
-    "scheme": "socks5", # или "http"
-    "hostname": "127.0.0.1", # IP твоего прокси (или VPN-клиента)
-    "port": 1080,            # Порт прокси
-    # "username": "твой_логин", # Если прокси с паролем
-    # "password": "твой_пароль"
+    "scheme": "socks5",
+    "hostname": "127.0.0.1",
+    "port": 1080,
+    # "username": "логин",
+    # "password": "пароль"
 }
