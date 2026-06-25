@@ -11,16 +11,14 @@ from utils.db_api import async_session
 
 router = Router()
 
-# 1. Начало: Предлагаем ввести текст ИЛИ выбрать шаблон
 @router.message(F.text == "📝 Создать пост")
 async def start_posting(message: Message, state: FSMContext):
     await message.answer(
         "Отправьте контент (текст/фото) ИЛИ выберите шаблон:",
-        reply_markup=content_selection_kb() # Кнопка "Загрузить шаблон"
+        reply_markup=content_selection_kb()
     )
     await state.set_state(PostCreation.waiting_for_content)
 
-# 1.5 Нажали "Загрузить из шаблона"
 @router.callback_query(F.data == "pick_template_for_post")
 async def show_templates_for_post(callback: CallbackQuery):
     tpls = await get_user_templates(callback.from_user.id)
@@ -33,12 +31,10 @@ async def show_templates_for_post(callback: CallbackQuery):
         reply_markup=templates_list_kb(tpls, mode="load")
     )
 
-# 1.6 Выбрали шаблон -> Загружаем данные и сразу переходим к каналам
 @router.callback_query(F.data.startswith("load_tpl_"))
 async def load_template_data(callback: CallbackQuery, state: FSMContext):
     tpl_id = int(callback.data.split("_")[2])
     
-    # Загружаем шаблон из БД
     async with async_session() as session:
         res = await session.execute(select(Template).where(Template.id == tpl_id))
         tpl = res.scalar_one_or_none()
@@ -47,7 +43,6 @@ async def load_template_data(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Ошибка: шаблон не найден")
         return
 
-    # Формируем данные как будто юзер их ввел
     data = {
         'user_id': callback.from_user.id,
         'text': tpl.content,
@@ -57,7 +52,6 @@ async def load_template_data(callback: CallbackQuery, state: FSMContext):
     
     await state.update_data(post_data=data, selected_channels=set())
     
-    # Переходим к выбору каналов
     channels = await get_user_channels(callback.from_user.id)
     if not channels:
         await callback.message.edit_text("Нет каналов.")
@@ -71,7 +65,6 @@ async def load_template_data(callback: CallbackQuery, state: FSMContext):
     await state.set_state(PostCreation.choosing_channels)
 
 
-# 2. Обычный ввод контента (Если не выбрали шаблон)
 @router.message(PostCreation.waiting_for_content)
 async def process_content(message: Message, state: FSMContext):
     data = {}
@@ -79,7 +72,7 @@ async def process_content(message: Message, state: FSMContext):
     if message.photo:
         data['media_id'] = message.photo[-1].file_id
         data['media_type'] = 'photo'
-        data['text'] = message.caption # aiogram сам переведет в HTML благодаря main.py
+        data['text'] = message.caption
     elif message.video:
         data['media_id'] = message.video.file_id
         data['media_type'] = 'video'
@@ -87,7 +80,7 @@ async def process_content(message: Message, state: FSMContext):
     elif message.text:
         data['media_id'] = None
         data['media_type'] = 'text'
-        data['text'] = message.text # Аналогично, сохранит HTML
+        data['text'] = message.text
     else:
         await message.answer("⚠️ Текст, фото или видео.")
         return
@@ -177,17 +170,15 @@ async def finish_post(message: Message, state: FSMContext, bot: Bot):
     
     post_data['delete_after'] = minutes if minutes > 0 else None
     
-    # Сначала создаем пост, чтобы получить его ID
     post_id = await create_post_in_db(post_data)
     
     if post_id and hasattr(bot, 'scheduler'):
-        # Теперь добавляем задачу с уникальным ID
         job_id = f"post_send_{post_id}"
         bot.scheduler.add_job(
             send_post_task,
             trigger="date",
             run_date=post_data['publish_date'],
-            id=job_id,  # <-- ВОТ ОНО, УНИКАЛЬНОЕ ИМЯ ЗАДАЧИ
+            id=job_id,
             misfire_grace_time=30,
             kwargs={"bot": bot, "post_id": post_id, "scheduler": bot.scheduler}
         )
