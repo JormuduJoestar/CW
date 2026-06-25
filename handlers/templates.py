@@ -7,25 +7,21 @@ from keyboards.builders import templates_management_kb, templates_list_kb, main_
 
 router = Router()
 
-# 1. Вход в меню шаблонов
 @router.message(F.text == "📂 Шаблоны")
 async def open_templates_menu(message: Message):
     await message.answer("Управление шаблонами:", reply_markup=templates_management_kb())
 
-# 2. Создание шаблона - Шаг 1: Имя
 @router.callback_query(F.data == "create_template")
 async def ask_template_name(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("Введите название для нового шаблона:")
     await state.set_state(TemplateState.waiting_for_name)
 
-# Шаг 2: Имя получено, ждем контент
 @router.message(TemplateState.waiting_for_name)
 async def ask_template_content(message: Message, state: FSMContext):
     await state.update_data(tpl_name=message.text)
     await message.answer("Теперь пришлите текст или фото с подписью для шаблона.")
     await state.set_state(TemplateState.waiting_for_content)
 
-# Шаг 3: Сохранение
 @router.message(TemplateState.waiting_for_content)
 async def save_new_template(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -49,7 +45,6 @@ async def save_new_template(message: Message, state: FSMContext):
     await message.answer(f"✅ Шаблон «{name}» сохранен!", reply_markup=main_menu_kb())
     await state.clear()
 
-# 3. Удаление шаблона
 @router.callback_query(F.data == "delete_template_menu")
 async def show_delete_list(callback: CallbackQuery):
     tpls = await get_user_templates(callback.from_user.id)
