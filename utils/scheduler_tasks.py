@@ -9,13 +9,9 @@ async def delete_post_task(bot: Bot, channel_id: int, message_id: int, post_id: 
     Задача на удаление поста. Теперь она сначала собирает статистику.
     """
     try:
-        # --- ШАГ 1: СБОР СТАТИСТИКИ (НОВЫЙ БЛОК) ---
         print(f"Запущена задача на удаление поста #{post_id}. Сначала собираем статистику...")
-        # Эта функция вызовет юзербота, который соберет просмотры со всех каналов
-        # для этого поста и сохранит в БД.
         await collect_and_save_views(post_id)
         
-        # --- ШАГ 2: УДАЛЕНИЕ СООБЩЕНИЯ (СТАРЫЙ БЛОК) ---
         print(f"Статистика для поста #{post_id} собрана. Удаляем сообщение из канала {channel_id}...")
         await bot.delete_message(chat_id=channel_id, message_id=message_id)
         print(f"  -> Сообщение {message_id} удалено.")
@@ -23,9 +19,6 @@ async def delete_post_task(bot: Bot, channel_id: int, message_id: int, post_id: 
     except Exception as e:
         print(f"❌ Ошибка в задаче delete_post_task для поста #{post_id}: {e}")
     finally:
-        # --- ШАГ 3: ОБНОВЛЕНИЕ СТАТУСА ---
-        # Этот блок выполнится в любом случае, даже если были ошибки.
-        # Мы обновляем статус только для `master` поста, а не для каждой копии.
         await update_post_status(post_id, "deleted")
         print(f"Пост #{post_id} помечен как 'deleted'.")
 
@@ -59,31 +52,28 @@ async def send_post_task(bot: Bot, post_id: int, scheduler):
                     chat_id=channel.channel_telegram_id,
                     text=post.content
                 )
-            
-            # --- ГЛАВНОЕ ИЗМЕНЕНИЕ ЗДЕСЬ ---
-            # Если сообщение было успешно отправлено (msg не None), сохраняем его ID
+                
             if msg:
                 await save_message_id(
                     post_id=post.id,
-                    channel_db_id=channel.id, # <-- Передаем ID из нашей таблицы Channel
+                    channel_db_id=channel.id,
                     message_id=msg.message_id
                 )
                 print(f"  -> Успешно отправлено в '{channel.title}'. Message ID: {msg.message_id} сохранен.")
             else:
                 print(f"  -> ⚠️ Пост #{post_id} был пустым, отправка в '{channel.title}' пропущена.")
-                continue # Переходим к следующему каналу
+                continue
 
             if post.delete_after_minutes and post.delete_after_minutes > 0:
                 run_date = datetime.now() + timedelta(minutes=post.delete_after_minutes)
                 
-                # Упрощаем ID задачи. Он все еще уникален для каждой пары пост-канал.
                 job_id = f"del_{post.id}_{channel.id}"
 
                 scheduler.add_job(
                     delete_post_task,
                     "date",
                     run_date=run_date,
-                    id=job_id, # Используем наш новый, короткий ID
+                    id=job_id,
                     kwargs={
                         "bot": bot, 
                         "channel_id": channel.channel_telegram_id, 
